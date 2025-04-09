@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query, QueryCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 // export const getAllUsers = query({
 //     args: {},
@@ -30,22 +31,47 @@ export const createUser = internalMutation({
 })
 
 export const getUserByClerkId = query({
-    args: {
-        clerkId: v.optional(v.string())
-    },
-    handler: async (ctx, args) => {
-        return await ctx.db.query('users').filter((q) => q.eq(q.field('clerkId'), args.clerkId)).unique();
+  args: {
+    clerkId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .filter((q) => q.eq(q.field('clerkId'), args.clerkId))
+      .unique();
+
+    if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
+      return user;
     }
-})
+
+    const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
+
+    return {
+      ...user,
+      imageUrl: url,
+    };
+  },
+});
 
 export const getUserById = query({
-    args: {
-        userId: v.id('users')
-    },
-    handler: async (ctx, args) => {
-        return await ctx.db.get(args.userId);
+  args: {
+    userId: v.id('users'),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
+      return user;
     }
-})
+
+    const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
+
+    return {
+      ...user,
+      imageUrl: url,
+    };
+  },
+});
+
 
 
 export const updateUser = mutation({
@@ -53,7 +79,7 @@ export const updateUser = mutation({
         _id: v.id('users'),
         bio: v.optional(v.string()),
         websiteUrl: v.optional(v.string()),
-        profilePicture: v.optional(v.string()),
+        imageUrl: v.optional(v.id('_storage')),
         pushToken: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
@@ -61,6 +87,24 @@ export const updateUser = mutation({
         return await ctx.db.patch(args._id, args)
     }
 })
+
+export const generateUploadUrl = mutation({
+  handler: async (ctx) => {
+    await getCurrentUserOrThrow(ctx);
+
+    return await ctx.storage.generateUploadUrl();
+  }
+})
+
+export const updateImage = mutation({
+  args: { storageId: v.id('_storage'), _id: v.id('users') },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args._id, {
+      imageUrl: args.storageId,
+    });
+  },
+});
+
 
 // IDENTITY CHECK
 
