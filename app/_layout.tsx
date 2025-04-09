@@ -1,39 +1,107 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { Slot, SplashScreen, Stack, useRouter, useSegments } from "expo-router";
+import { ClerkLoaded, ClerkProvider, useAuth, useUser } from "@clerk/clerk-expo";
+import { tokenCache } from "@clerk/clerk-expo/token-cache"
+import {
+  useFonts,
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans"
+import { useEffect } from "react";
+import { ConvexReactClient } from "convex/react"
+import { ConvexProviderWithClerk } from "convex/react-clerk"
+import * as Sentry from "@sentry/react-native";
+import Constants from 'expo-constants';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  unsavedChangesWarning: false,
+})
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!
+
+
+if (!clerkPublishableKey) throw new Error("No clerk publishable key found")
+
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay:
+    Constants.executionEnvironment === 'storeClient', // Only in native builds, not in Expo Go.
+});
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN!,
+  attachScreenshot: true,
+  debug: false,
+  tracesSampleRate: 1.0,
+  _experiments: {
+    profileSampleRate: 1.0,
+    replaysSessionSampleRate: 1.0,
+    replaysOnErrorSampleRate: 1.0
+  },
+  integrations: [navigationIntegration],
+  enableNativeFramesTracking: true // Only in native builds, not in Expo Go.
+});
+
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+// Update the InitialLayout component
+const InitialLayout = () => {
+  const [fontsLoaded] = useFonts({
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold
+  })
+
+  const { isLoaded, isSignedIn } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const user = useUser();
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (fontsLoaded) {
+      SplashScreen.hideAsync()
     }
-  }, [loaded]);
+  }, [fontsLoaded]);
 
-  if (!loaded) {
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (isSignedIn && !inAuthGroup) {
+      //@ts-ignore
+      router.replace('/(auth)/(tabs)/feed');
+    } else if (!isSignedIn && inAuthGroup) {
+      router.replace('/(public)');
+    }
+  }, [isSignedIn, isLoaded, segments]);
+
+  useEffect(() => {
+    if (user && user.user) {
+      Sentry.setUser({
+        email: user.user.emailAddresses?.[0]?.emailAddress || "no-email",
+        id: user.user.id
+      });
+    }
+    else {
+      Sentry.setUser(null);
+    }
+  }, [user])
+
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Slot />
+  )
+}
+
+const RootLayout = () => {
+  return (
+    <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+      <ClerkLoaded>
+        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+          <InitialLayout />
+        </ConvexProviderWithClerk>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
