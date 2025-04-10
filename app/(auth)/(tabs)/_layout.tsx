@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   }
 })
 
-const CreateTabIcon = ({ color, size, focused }: { color: string, size: number, focused: boolean }) => {
+const CreateTabIcon = ({ color, size }: { color: string, size: number}) => {
   return (
     <View style={styles.tabBarIconContainer}>
       <View style={styles.createIconContainer}>
@@ -67,20 +67,17 @@ const Layout = () => {
         }}
       />
       <Tabs.Screen
-        name='create'
+        name="create"
         options={{
-          headerShown: false,
-          title: "Create",
-          tabBarIcon: ({ color, size, focused }) => (
-            <CreateTabIcon color={color} size={size} focused={focused} />
-          ),
+          title: 'Create',
+          tabBarIcon: ({ color, size }) => <CreateTabIcon color={color} size={size} />,
         }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
             Haptics.selectionAsync();
-            router.push('/(auth)/(modal)/create')
-          }
+            router.push('/(auth)/(modal)/create');
+          },
         }}
       />
       <Tabs.Screen

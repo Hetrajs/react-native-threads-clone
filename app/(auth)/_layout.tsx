@@ -15,7 +15,7 @@ const Layout = () => {
       <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
       <Stack.Screen name='(modal)/create' options={{
         presentation: "modal",
-        title: "New Thread",
+        title: Platform.OS === "ios" ? "New Thread" : "",
         headerRight: () => (
           <TouchableOpacity>
             <Ionicons name='ellipsis-horizontal-circle' size={24} />
