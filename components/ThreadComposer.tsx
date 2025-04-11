@@ -25,13 +25,15 @@ import { ImagePickerAsset } from "expo-image-picker";
 type ThreadComposerProps = {
   isPreview?: boolean;
   isReply?: boolean;
+  isAutoFocused?: boolean;
   threadId?: Id<"messages">;
 };
 
 const ThreadComposer = ({
-  isPreview,
+  isPreview = false,
   isReply,
   threadId,
+  isAutoFocused,
 }: ThreadComposerProps) => {
   const router = useRouter();
   const [threadContent, setThreadContent] = useState("");
@@ -47,7 +49,7 @@ const ThreadComposer = ({
     addThread({
       threadId,
       content: threadContent,
-      mediaFiles: mediaIds
+      mediaFiles: mediaIds,
     });
     setThreadContent("");
     setMediaFiles([]);
@@ -87,14 +89,19 @@ const ThreadComposer = ({
       aspect: [1, 1],
     };
 
-    let result;
-    if (type === "library") {
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    } else {
-      result = await ImagePicker.launchCameraAsync(options);
-    }
-    if (!result.canceled) {
-      setMediaFiles([result.assets[0], ...mediaFiles]);
+    try {
+      let result;
+      if (type === "library") {
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      } else {
+        result = await ImagePicker.launchCameraAsync(options);
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setMediaFiles([...mediaFiles, result.assets[0]]);
+      }
+    } catch (error) {
+      console.log("Error selecting image:", error);
     }
   };
 
@@ -128,130 +135,183 @@ const ThreadComposer = ({
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+    <TouchableOpacity
+      style={
+        isPreview && {
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          pointerEvents: "box-only",
+        }
+      }
+      onPress={() => router.push("/(auth)/(modal)/create")}
+      activeOpacity={isPreview ? 0.7 : 1}
+      disabled={!isPreview}
     >
-      <View style={{ flex: 1 }}>
-        <Stack.Screen
-          options={{
-            headerLeft: () => (
-              <TouchableOpacity onPress={handleCancel}>
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-            ),
-          }}
-        />
-        <View style={styles.topRow}>
-          {userProfile && (
-            <Image
-              source={{
-                uri:
-                  userProfile?.imageUrl ||
-                  "https://www.shutterstock.com/shutterstock/photos/535853263/display_1500/stock-vector-profile-photo-vector-placeholder-pic-male-person-default-profile-gray-photo-picture-avatar-535853263.jpg",
-              }}
-              style={styles.avatar}
-            />
-          )}
-          <View style={styles.centerContainer}>
-            <Text style={styles.name}>
-              {userProfile?.first_name} {userProfile?.last_name}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={isReply ? "Reply to thread" : `What's new?`}
-              value={threadContent}
-              onChangeText={setThreadContent}
-              multiline
-              autoFocus={!isPreview}
-              inputAccessoryViewID={inputAccessoryViewID}
-            />
-            {mediaFiles.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {mediaFiles.map((file, index) => (
-                  <View style={styles.mediaContainer} key={index}>
-                    <Image
-                      source={{ uri: file.uri }}
-                      style={styles.mediaImage}
-                    />
-                    <TouchableOpacity
-                      style={styles.deleteContainer}
-                      onPress={() => {
-                        setMediaFiles(mediaFiles.filter((_, i) => i !== index));
-                      }}
-                    >
-                      <Ionicons name="close" size={24} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View style={{ flex: 1 }}>
+          <Stack.Screen
+            options={{
+              headerLeft: () => (
+                <TouchableOpacity onPress={handleCancel} disabled={isPreview}>
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+              ),
+            }}
+          />
+          <View style={styles.topRow}>
+            {userProfile && (
+              <Image
+                source={{
+                  uri:
+                    userProfile?.imageUrl ||
+                    "https://www.shutterstock.com/shutterstock/photos/535853263/display_1500/stock-vector-profile-photo-vector-placeholder-pic-male-person-default-profile-gray-photo-picture-avatar-535853263.jpg",
+                }}
+                style={styles.avatar}
+              />
             )}
-            <View style={styles.iconRow}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => selectImage("library")}
-              >
-                <Ionicons
-                  name="images-outline"
-                  size={24}
-                  color={Colors.border}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => selectImage("camera")}
-              >
-                <Ionicons
-                  name="camera-outline"
-                  size={24}
-                  color={Colors.border}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <MaterialIcons name="gif" size={34} color={Colors.border} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="mic-outline" size={24} color={Colors.border} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <FontAwesome6 name="hashtag" size={24} color={Colors.border} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons
-                  name="stats-chart-outline"
-                  size={24}
-                  color={Colors.border}
-                />
-              </TouchableOpacity>
+            <View style={styles.centerContainer}>
+              <Text style={styles.name}>
+                {userProfile?.first_name} {userProfile?.last_name}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder={isReply ? "Reply to thread" : `What's new?`}
+                value={threadContent}
+                onChangeText={setThreadContent}
+                multiline
+                autoFocus={!isPreview}
+                inputAccessoryViewID={inputAccessoryViewID}
+                editable={!isPreview}
+                pointerEvents={isPreview ? "none" : "auto"}
+              />
+              {mediaFiles.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  scrollEnabled={!isPreview}
+                >
+                  {mediaFiles.map((file, index) => (
+                    <View style={styles.mediaContainer} key={index}>
+                      <Image
+                        source={{ uri: file.uri }}
+                        style={styles.mediaImage}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.deleteContainer,
+                          { opacity: isPreview ? 0 : 1 },
+                        ]}
+                        onPress={() => {
+                          setMediaFiles(
+                            mediaFiles.filter((_, i) => i !== index)
+                          );
+                        }}
+                        disabled={isPreview}
+                      >
+                        <Ionicons name="close" size={24} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+              <View style={styles.iconRow}>
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  onPress={() => selectImage("library")}
+                  disabled={isPreview}
+                >
+                  <Ionicons
+                    name="images-outline"
+                    size={24}
+                    color={Colors.border}
+                  />
+                </TouchableOpacity>
+                {/* Apply similar changes to other icon buttons */}
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  onPress={() => selectImage("camera")}
+                  disabled={isPreview}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={24}
+                    color={Colors.border}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  disabled={isPreview}
+                >
+                  <MaterialIcons name="gif" size={34} color={Colors.border} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  disabled={isPreview}
+                >
+                  <Ionicons
+                    name="mic-outline"
+                    size={24}
+                    color={Colors.border}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  disabled={isPreview}
+                >
+                  <FontAwesome6
+                    name="hashtag"
+                    size={24}
+                    color={Colors.border}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { opacity: isPreview ? 0.5 : 1 }]}
+                  disabled={isPreview}
+                >
+                  <Ionicons
+                    name="stats-chart-outline"
+                    size={24}
+                    color={Colors.border}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
+            {threadContent.length !== 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  {
+                    opacity: isPreview ? 0 : 1,
+                  },
+                ]}
+                onPress={removeThread}
+                disabled={isPreview}
+              >
+                <Ionicons name="close" size={16} color={Colors.border} />
+              </TouchableOpacity>
+            )}
           </View>
-          {threadContent.length !== 0 && (
-            <TouchableOpacity
-              style={[
-                styles.cancelButton,
-                {
-                  opacity: isPreview ? 0 : 1,
-                },
-              ]}
-              onPress={removeThread}
-            >
-              <Ionicons name="close" size={16} color={Colors.border} />
-            </TouchableOpacity>
+
+          {/* Platform-specific keyboard accessory */}
+          {Platform.OS === "ios" && isPreview === false ? (
+            <InputAccessoryView nativeID={inputAccessoryViewID}>
+              {renderKeyboardAccessory()}
+            </InputAccessoryView>
+          ) : (
+            isPreview === false && (
+              <View style={styles.androidAccessoryContainer}>
+                {renderKeyboardAccessory()}
+              </View>
+            )
           )}
         </View>
-
-        {/* Platform-specific keyboard accessory */}
-        {Platform.OS === "ios" ? (
-          <InputAccessoryView nativeID={inputAccessoryViewID}>
-            {renderKeyboardAccessory()}
-          </InputAccessoryView>
-        ) : (
-          <View style={styles.androidAccessoryContainer}>
-            {renderKeyboardAccessory()}
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </TouchableOpacity>
   );
 };
 
