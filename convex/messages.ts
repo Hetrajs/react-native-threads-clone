@@ -54,17 +54,83 @@ export const getThreads = query({
     const messagesWithCreator = await Promise.all(
       threads.page.map(async (thread) => {
         const creator = await getMessageCreator(ctx, thread.userId);
-
+        const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
         return {
           ...thread,
           creator,
+          mediaFiles: mediaUrls,
         };
       })
     );
 
     return {
       ...threads,
-      page: messagesWithCreator
+      page: messagesWithCreator,
+    };
+  },
+});
+
+export const likeThread = mutation({
+  args: {
+    threadId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const userId = user._id;
+
+    // Check if the user has already liked this thread
+    const existingLike = await ctx.db
+      .query("likes")
+      .withIndex("by_user_thread", (q) => 
+        q.eq("userId", userId).eq("threadId", args.threadId)
+      )
+      .unique();
+
+    const message = await ctx.db.get(args.threadId);
+    if (!message) throw new Error("Thread not found");
+
+    if (existingLike) {
+      // User already liked this thread, so remove the like
+      await ctx.db.delete(existingLike._id);
+      
+      // Decrement the like count
+      await ctx.db.patch(args.threadId, {
+        likeCount: Math.max(0, (message.likeCount || 0) - 1),
+      });
+    } else {
+      // User hasn't liked this thread yet, so add a like
+      await ctx.db.insert("likes", {
+        userId,
+        threadId: args.threadId,
+      });
+      
+      // Increment the like count
+      await ctx.db.patch(args.threadId, {
+        likeCount: (message.likeCount || 0) + 1,
+      });
+    }
+  },
+});
+
+export const hasUserLikedThread = query({
+  args: {
+    threadId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const user = await getCurrentUserOrThrow(ctx);
+      
+      const like = await ctx.db
+        .query("likes")
+        .withIndex("by_user_thread", (q) => 
+          q.eq("userId", user._id).eq("threadId", args.threadId)
+        )
+        .unique();
+      
+      return !!like;
+    } catch (error) {
+      // User not logged in or other error
+      return false;
     }
   },
 });
@@ -81,6 +147,26 @@ const getMessageCreator = async (ctx: QueryCtx, userId: Id<"users">) => {
     ...user,
     imageUrl,
   };
+};
+
+const getMediaUrls = async (
+  ctx: QueryCtx,
+  mediaFiles: string[] | undefined
+) => {
+  if (!mediaFiles || mediaFiles.length === 0) {
+    return [];
+  }
+
+  const urlPromises = mediaFiles.map((file) =>
+    ctx.storage.getUrl(file as Id<"_storage">)
+  );
+  const results = await Promise.allSettled(urlPromises);
+  return results
+    .filter(
+      (result): result is PromiseFulfilledResult<string> =>
+        result.status === "fulfilled"
+    )
+    .map((result) => result.value);
 };
 
 export const generateUploadUrl = mutation({

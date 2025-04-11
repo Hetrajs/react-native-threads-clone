@@ -13,6 +13,15 @@ import { Colors } from "@/constants/Colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ThreadComposer from "@/components/ThreadComposer";
 import Thread from "@/components/Thread";
+import { Doc } from "@/convex/_generated/dataModel";
+import { useNavigation } from "expo-router";
+import Animated, {
+  runOnJS,
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from "react-native-reanimated";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useIsFocused } from "@react-navigation/native";
 
 const Page = () => {
   const { results, status, loadMore } = usePaginatedQuery(
@@ -26,6 +35,35 @@ const Page = () => {
   const [refreshing, setRefreshing] = useState(false);
   const { top } = useSafeAreaInsets();
 
+  // Animation
+  const navigation = useNavigation();
+  const scrollOffset = useSharedValue(0);
+  const tabBarHeight = useBottomTabBarHeight();
+  const isFocused = useIsFocused();
+
+  const updateTabBar = () => {
+    let NewMarginBottom = 0;
+    if (scrollOffset.value >= 0 && scrollOffset.value <= tabBarHeight) {
+      NewMarginBottom = -scrollOffset.value;
+    } else if (scrollOffset.value > tabBarHeight) {
+      NewMarginBottom = -tabBarHeight;
+    }
+    navigation.getParent()?.setOptions({
+      tabBarStyle: {
+        marginBottom: NewMarginBottom,
+      },
+    });
+  };
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      if (isFocused) {
+        scrollOffset.value = event.contentOffset.y;
+        runOnJS(updateTabBar)();
+      }
+    },
+  });
+
   const onLoadMore = () => {
     loadMore(5);
   };
@@ -38,10 +76,14 @@ const Page = () => {
   };
 
   return (
-    <FlatList
+    <Animated.FlatList
+      onScroll={scrollHandler}
+      scrollEventThrottle={16}
       data={results}
       showsVerticalScrollIndicator={false}
-      renderItem={({ item }) => <Thread thread={item} />}
+      renderItem={({ item }) => (
+        <Thread thread={item as Doc<"messages"> & { creator: Doc<"users"> }} />
+      )}
       keyExtractor={(item) => item._id}
       onEndReached={onLoadMore}
       onEndReachedThreshold={0.5}
@@ -67,7 +109,7 @@ const Page = () => {
               alignSelf: "center",
             }}
           />
-          <ThreadComposer isPreview={true}  />
+          <ThreadComposer isPreview={true} />
         </View>
       }
     />

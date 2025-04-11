@@ -1,8 +1,17 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-import React from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import React, { useEffect, useState } from "react";
 import { Doc } from "@/convex/_generated/dataModel";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 type ThreadProps = {
   thread: Doc<"messages"> & {
@@ -20,6 +29,40 @@ const Thread = ({ thread }: ThreadProps) => {
     mediaFiles,
     likeCount,
   } = thread;
+  
+  const likeThread = useMutation(api.messages.likeThread);
+  const hasLiked = useQuery(api.messages.hasUserLikedThread, { 
+    threadId: thread._id 
+  });
+  
+  // Local state to show immediate UI feedback
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState(likeCount || 0);
+  const [optimisticHasLiked, setOptimisticHasLiked] = useState(false);
+
+  // Update optimistic state when the real data comes in
+  useEffect(() => {
+    if (hasLiked !== undefined) {
+      setOptimisticHasLiked(hasLiked);
+    }
+  }, [hasLiked]);
+
+  // Update optimistic like count when thread changes
+  useEffect(() => {
+    setOptimisticLikeCount(likeCount || 0);
+  }, [likeCount]);
+
+  const handleLike = () => {
+    // Optimistic update
+    setOptimisticHasLiked(!optimisticHasLiked);
+    setOptimisticLikeCount(optimisticHasLiked ? 
+      Math.max(0, optimisticLikeCount - 1) : 
+      optimisticLikeCount + 1
+    );
+    
+    // Actual mutation
+    likeThread({ threadId: thread._id });
+  };
+  
   return (
     <View style={styles.container}>
       <Image
@@ -47,13 +90,32 @@ const Thread = ({ thread }: ThreadProps) => {
           />
         </View>
         <Text style={styles.content}>{content}</Text>
+        {mediaFiles && mediaFiles.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mediaContainer}
+          >
+            {mediaFiles.map((imageUrl, index) => (
+              <Image
+                key={index}
+                source={{ uri: imageUrl }}
+                style={styles.mediaImages}
+              />
+            ))}
+          </ScrollView>
+        )}
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => likeThread({ messageId: thread._id })}
+            onPress={handleLike}
           >
-            <Ionicons name="heart-outline" size={24} color="black" />
-            <Text style={styles.actionText}>{likeCount}</Text>
+            <Ionicons 
+              name={optimisticHasLiked ? "heart" : "heart-outline"} 
+              size={24} 
+              color={optimisticHasLiked ? "red" : "black"} 
+            />
+            <Text style={styles.actionText}>{optimisticLikeCount}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="chatbubble-outline" size={24} color="black" />
@@ -112,8 +174,24 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
     marginTop: 10,
+    gap: 16,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  actionText: {
+    marginLeft: 5,
+  },
+  mediaImages: {
+    width: 200,
+    height: 250,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  mediaContainer: {
+    paddingRight: 10,
+    gap: 14,
   },
 });

@@ -26,7 +26,15 @@ export const Message = {
     websiteUrl: v.optional(v.string()),
 }
 
+// Add the Like schema
+export const Like = {
+    userId: v.id('users'),
+    threadId: v.id('messages'),
+}
+
 export default defineSchema({
     users: defineTable(User).index('byClerkId', ['clerkId']),
-    messages: defineTable(Message)
-}) 
+    messages: defineTable(Message),
+    // Add the likes table with the required index
+    likes: defineTable(Like).index('by_user_thread', ['userId', 'threadId']),
+})
