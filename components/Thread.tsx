@@ -12,6 +12,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Link } from "expo-router";
 
 type ThreadProps = {
   thread: Doc<"messages"> & {
@@ -29,14 +30,16 @@ const Thread = ({ thread }: ThreadProps) => {
     mediaFiles,
     likeCount,
   } = thread;
-  
+
   const likeThread = useMutation(api.messages.likeThread);
-  const hasLiked = useQuery(api.messages.hasUserLikedThread, { 
-    threadId: thread._id 
+  const hasLiked = useQuery(api.messages.hasUserLikedThread, {
+    threadId: thread._id,
   });
-  
+
   // Local state to show immediate UI feedback
-  const [optimisticLikeCount, setOptimisticLikeCount] = useState(likeCount || 0);
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState(
+    likeCount || 0
+  );
   const [optimisticHasLiked, setOptimisticHasLiked] = useState(false);
 
   // Update optimistic state when the real data comes in
@@ -54,15 +57,16 @@ const Thread = ({ thread }: ThreadProps) => {
   const handleLike = () => {
     // Optimistic update
     setOptimisticHasLiked(!optimisticHasLiked);
-    setOptimisticLikeCount(optimisticHasLiked ? 
-      Math.max(0, optimisticLikeCount - 1) : 
-      optimisticLikeCount + 1
+    setOptimisticLikeCount(
+      optimisticHasLiked
+        ? Math.max(0, optimisticLikeCount - 1)
+        : optimisticLikeCount + 1
     );
-    
+
     // Actual mutation
     likeThread({ threadId: thread._id });
   };
-  
+
   return (
     <View style={styles.container}>
       <Image
@@ -97,23 +101,28 @@ const Thread = ({ thread }: ThreadProps) => {
             contentContainerStyle={styles.mediaContainer}
           >
             {mediaFiles.map((imageUrl, index) => (
-              <Image
+              <Link
+                //@ts-ignore
+                href={`/(auth)/(modal)/image/${encodeURIComponent(imageUrl)}`}
+                asChild
                 key={index}
-                source={{ uri: imageUrl }}
-                style={styles.mediaImages}
-              />
+              >
+                <TouchableOpacity>
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.mediaImages}
+                  />
+                </TouchableOpacity>
+              </Link>
             ))}
           </ScrollView>
         )}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleLike}
-          >
-            <Ionicons 
-              name={optimisticHasLiked ? "heart" : "heart-outline"} 
-              size={24} 
-              color={optimisticHasLiked ? "red" : "black"} 
+          <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+            <Ionicons
+              name={optimisticHasLiked ? "heart" : "heart-outline"}
+              size={24}
+              color={optimisticHasLiked ? "red" : "black"}
             />
             <Text style={styles.actionText}>{optimisticLikeCount}</Text>
           </TouchableOpacity>
