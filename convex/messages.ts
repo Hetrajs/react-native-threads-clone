@@ -81,7 +81,7 @@ export const likeThread = mutation({
     // Check if the user has already liked this thread
     const existingLike = await ctx.db
       .query("likes")
-      .withIndex("by_user_thread", (q) => 
+      .withIndex("by_user_thread", (q) =>
         q.eq("userId", userId).eq("threadId", args.threadId)
       )
       .unique();
@@ -92,7 +92,7 @@ export const likeThread = mutation({
     if (existingLike) {
       // User already liked this thread, so remove the like
       await ctx.db.delete(existingLike._id);
-      
+
       // Decrement the like count
       await ctx.db.patch(args.threadId, {
         likeCount: Math.max(0, (message.likeCount || 0) - 1),
@@ -103,7 +103,7 @@ export const likeThread = mutation({
         userId,
         threadId: args.threadId,
       });
-      
+
       // Increment the like count
       await ctx.db.patch(args.threadId, {
         likeCount: (message.likeCount || 0) + 1,
@@ -119,19 +119,38 @@ export const hasUserLikedThread = query({
   handler: async (ctx, args) => {
     try {
       const user = await getCurrentUserOrThrow(ctx);
-      
+
       const like = await ctx.db
         .query("likes")
-        .withIndex("by_user_thread", (q) => 
+        .withIndex("by_user_thread", (q) =>
           q.eq("userId", user._id).eq("threadId", args.threadId)
         )
         .unique();
-      
+
       return !!like;
     } catch (error) {
       // User not logged in or other error
       return false;
     }
+  },
+});
+
+export const getThreadById = query({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return null;
+
+    const creator = await getMessageCreator(ctx, message.userId);
+    const mediaUrls = await getMediaUrls(ctx, message.mediaFiles);
+
+    return {
+      ...message,
+      mediaFiles: mediaUrls,
+      creator,
+    };
   },
 });
 

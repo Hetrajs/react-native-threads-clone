@@ -5,6 +5,7 @@ import {
   RefreshControl,
   FlatList,
   Image,
+  TouchableOpacity,
 } from "react-native";
 import React, { useState } from "react";
 import { usePaginatedQuery } from "convex/react";
@@ -14,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ThreadComposer from "@/components/ThreadComposer";
 import Thread from "@/components/Thread";
 import { Doc } from "@/convex/_generated/dataModel";
-import { useNavigation } from "expo-router";
+import { Link, useNavigation } from "expo-router";
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -82,7 +83,13 @@ const Page = () => {
       data={results}
       showsVerticalScrollIndicator={false}
       renderItem={({ item }) => (
-        <Thread thread={item as Doc<"messages"> & { creator: Doc<"users"> }} />
+        <Link href={`/(auth)/(tabs)/feed/${item._id}`} asChild>
+          <TouchableOpacity>
+            <Thread
+              thread={item as Doc<"messages"> & { creator: Doc<"users"> }}
+            />
+          </TouchableOpacity>
+        </Link>
       )}
       keyExtractor={(item) => item._id}
       onEndReached={onLoadMore}

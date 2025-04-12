@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "@/constants/Colors";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "@clerk/clerk-react";
-import { useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import UserProfile from "@/components/UserProfile"; // Fixed capitalization
 import Tabs from "@/components/Tabs";
 import { usePaginatedQuery } from "convex/react";
@@ -32,7 +32,7 @@ const Profile = ({ userId, showBackButton = false }: ProfileProps) => {
 
   const router = useRouter();
 
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results } = usePaginatedQuery(
     api.messages.getThreads,
     { userId: userId || userProfile?._id },
     {
@@ -45,9 +45,13 @@ const Profile = ({ userId, showBackButton = false }: ProfileProps) => {
       <FlatList
         data={results}
         renderItem={({ item }) => (
-          <Thread
-            thread={item as Doc<"messages"> & { creator: Doc<"users"> }}
-          />
+          <Link href={`/(auth)/(tabs)/feed/${item._id}`} asChild>
+          <TouchableOpacity>
+            <Thread
+              thread={item as Doc<"messages"> & { creator: Doc<"users"> }}
+            />
+          </TouchableOpacity>
+        </Link>
         )}
         ListEmptyComponent={
           <View style={{ alignItems: "center", padding: 20 }}>
@@ -67,7 +71,7 @@ const Profile = ({ userId, showBackButton = false }: ProfileProps) => {
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              {showBackButton ? (
+              {showBackButton === true ? (
                 <TouchableOpacity onPress={() => router.back()}>
                   <Ionicons name="chevron-back" size={24} color="black" />
                 </TouchableOpacity>
